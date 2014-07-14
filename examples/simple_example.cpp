@@ -8,7 +8,7 @@
  * Copyright (C) 2012 Michal Uricar
  */
 
-#include <highgui.h>
+#include <opencv/highgui.h>
 #include <cstring>
 #include <cmath>
 

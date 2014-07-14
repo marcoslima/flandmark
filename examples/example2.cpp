@@ -8,9 +8,9 @@
  * Copyright (C) 2012 Michal Uricar
  */
 
-#include <cv.h>
-#include <cvaux.h>
-#include <highgui.h>
+#include <opencv/cv.h>
+#include <opencv/cvaux.h>
+#include <opencv/highgui.h>
 
 #include <cstring>
 #include <stdlib.h>
