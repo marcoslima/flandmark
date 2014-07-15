@@ -1006,6 +1006,44 @@ int flandmark_detect(IplImage *img, int *bbox, FLANDMARK_Model *model, double *l
 	return 0;
 }
 
+int flandmark_detect(Mat img, int *bbox, FLANDMARK_Model *model, double *landmarks, int *bw_margin)
+{
+    int retval = 0;
+
+    if (bw_margin)
+	{
+		model->data.options.bw_margin[0] = bw_margin[0];
+		model->data.options.bw_margin[1] = bw_margin[1];
+	}
+
+	// Get normalized image frame
+    retval = flandmark_get_normalized_image_frame(img, bbox, model->bb, model->normalizedImageFrame, model);
+    if (retval)
+    {
+        // flandmark_get_normlalized_image_frame ERROR;
+        return 1;
+    }
+
+    // Call flandmark_detect_base
+    retval = flandmark_detect_base(model->normalizedImageFrame, model, landmarks);
+    if (retval)
+    {
+        // flandmark_detect_base ERROR
+        return 2;
+    }
+
+	// transform coordinates of detected landmarks from normalized image frame back to the original image
+	model->sf[0] = (float)(model->bb[2]-model->bb[0])/model->data.options.bw[0];
+	model->sf[1] = (float)(model->bb[3]-model->bb[1])/model->data.options.bw[1];
+	for (int i = 0; i < 2*model->data.options.M; i += 2)
+	{
+		landmarks[i]   = landmarks[i]*model->sf[0] + model->bb[0];
+		landmarks[i+1] = landmarks[i+1]*model->sf[1] + model->bb[1];
+	}
+
+	return 0;
+}
+
 void flandmark_maximize_gdotprod(double * maximum, double * idx, const double * first, const double * second, const int * third, const int cols, const int tsize)
 {
 	*maximum = -FLT_MAX;
@@ -1102,6 +1140,62 @@ int flandmark_get_normalized_image_frame(IplImage *input, const int bbox[], doub
 
     cvReleaseImage(&croppedImage);
     cvReleaseImage(&resizedImage);
+
+	return 0;
+}
+
+int flandmark_get_normalized_image_frame(Mat input, const int bbox[], double *bb, uint8_t *face_img, FLANDMARK_Model *model)
+{
+	bool flag;
+	int d[2];
+	double c[2], nd[2];
+
+	// extend bbox by bw_margin
+	d[0] = bbox[2]-bbox[0]+1;  d[1] = bbox[3]-bbox[1]+1;
+	c[0] = (bbox[2]+bbox[0])/2.0f; c[1] = (bbox[3]+bbox[1])/2.0f;
+	nd[0] = d[0]*model->data.options.bw_margin[0]/100.0f + d[0];
+	nd[1] = d[1]*model->data.options.bw_margin[1]/100.0f + d[1];
+
+    bb[0] = (c[0] - nd[0]/2.0f);
+    bb[1] = (c[1] - nd[1]/2.0f);
+    bb[2] = (c[0] + nd[0]/2.0f);
+    bb[3] = (c[1] + nd[1]/2.0f);
+
+    flag = bb[0] > 0 && bb[1] > 0 && bb[2] < input.cols && bb[3] < input.rows
+		&& bbox[0] > 0 && bbox[1] > 0 && bbox[2] < input.cols && bbox[3] < input.rows;
+
+	if (!flag)
+	{
+		return 1;
+	}
+
+    // IplImage *croppedImage = cvCreateImage(cvSize(input->width, input->height), IPL_DEPTH_8U, 1);
+	Mat croppedImage; // = Mat::zeros(input.size(),CV_8UC1);
+
+    // IplImage *resizedImage = cvCreateImage(cvSize(model->data.options.bw[0], model->data.options.bw[1]), IPL_DEPTH_8U, 1);
+	Mat resizedImage; // = Mat::zeros(Size(model->data.options.bw[0],model->data.options.bw[1]), CV_8UC1);
+
+	// Validate params:
+	Rect rcRoi((int)bb[0], (int)bb[1], (int)bb[2]-(int)bb[0]+1, (int)bb[3]-(int)bb[1]+1); 
+	if (input.cols <= 0 || input.rows <= 0 || rcRoi.width <= 0 || rcRoi.height <= 0 || input.depth() != CV_8U)
+	{
+		return 1;
+	}
+
+	// crop and resize image to normalized frame
+	Mat(input,rcRoi).copyTo(croppedImage);
+
+	// resize
+	resize(croppedImage, resizedImage, Size(model->data.options.bw[0],model->data.options.bw[1]), 0, 0, CV_INTER_CUBIC);
+
+	// tranform IplImage to simple 1D uint8 array representing 2D uint8 normalized image frame
+	for (int x = 0; x < model->data.options.bw[0]; ++x)
+	{
+		for (int y = 0; y < model->data.options.bw[1]; ++y)
+		{
+            face_img[INDEX(y, x, model->data.options.bw[1])] = (uint8_t)((resizedImage.at<unsigned __int8>(y,x)));
+		}
+	}
 
 	return 0;
 }

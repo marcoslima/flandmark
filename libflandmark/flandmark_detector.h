@@ -14,6 +14,10 @@
 #include "msvc-compat.h"
 #include <opencv/cv.h>
 #include <opencv/cvaux.h>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+using namespace cv;
+
 
 // index row-order matrices
 #define INDEX(ROW, COL, NUM_ROWS) ((COL)*(NUM_ROWS)+(ROW))
@@ -157,6 +161,7 @@ void flandmark_maximize_gdotprod(double *maximum, double *idx, const double *fir
  *
  */
 int flandmark_get_normalized_image_frame(IplImage *input, const int bbox[], double *bb, uint8_t *face_img, FLANDMARK_Model *model);
+int flandmark_get_normalized_image_frame(Mat input, const int bbox[], double *bb, uint8_t *face_img, FLANDMARK_Model *model);
 
 /**
  * Function imcrop
@@ -189,5 +194,6 @@ int flandmark_detect_base(uint8_t *face_image, FLANDMARK_Model *model, double *l
  *
  */
 int flandmark_detect(IplImage *img, int * bbox, FLANDMARK_Model *model, double *landmarks, int * bw_margin = 0);
+int flandmark_detect(Mat img, int * bbox, FLANDMARK_Model *model, double *landmarks, int * bw_margin = 0);
 
 #endif // __LIBFLD_DETECTOR_H_
