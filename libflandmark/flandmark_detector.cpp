@@ -1151,7 +1151,7 @@ int flandmark_get_normalized_image_frame(Mat input, const int bbox[], double *bb
 	double c[2], nd[2];
 
 	// extend bbox by bw_margin
-	d[0] = bbox[2]-bbox[0]+1;  d[1] = bbox[3]-bbox[1]+1;
+	d[0] = bbox[2]-bbox[0];  d[1] = bbox[3]-bbox[1];
 	c[0] = (bbox[2]+bbox[0])/2.0f; c[1] = (bbox[3]+bbox[1])/2.0f;
 	nd[0] = d[0]*model->data.options.bw_margin[0]/100.0f + d[0];
 	nd[1] = d[1]*model->data.options.bw_margin[1]/100.0f + d[1];
