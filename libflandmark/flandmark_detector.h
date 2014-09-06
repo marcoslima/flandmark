@@ -11,7 +11,7 @@
 #ifndef __FLANDMARK_DETECTOR_H_
 #define __FLANDMARK_DETECTOR_H_
 
-#include "msvc-compat.h"
+#include <stdint.h>
 #include <opencv/cv.h>
 #include <opencv/cvaux.h>
 #include <opencv2/core.hpp>

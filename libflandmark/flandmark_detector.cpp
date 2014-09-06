@@ -1161,8 +1161,8 @@ int flandmark_get_normalized_image_frame(Mat input, const int bbox[], double *bb
     bb[2] = (c[0] + nd[0]/2.0f);
     bb[3] = (c[1] + nd[1]/2.0f);
 
-    flag = bb[0] > 0 && bb[1] > 0 && bb[2] < input.cols && bb[3] < input.rows
-		&& bbox[0] > 0 && bbox[1] > 0 && bbox[2] < input.cols && bbox[3] < input.rows;
+    flag = bb[0] >= 0 && bb[1] >= 0 && bb[2] < input.cols && bb[3] < input.rows 
+		&& bbox[0] >= 0 && bbox[1] >= 0 && bbox[2] < input.cols && bbox[3] < input.rows;
 
 	if (!flag)
 	{

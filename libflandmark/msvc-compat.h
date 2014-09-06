@@ -1,3 +1,4 @@
+#if 0
 #ifndef FLANDMAR_MSVC_COMPAT
 #define FLANDMAR_MSVC_COMPAT
 #ifdef _MSC_VER
@@ -15,4 +16,5 @@ typedef __int64 int64_t;
 #	include <stdint.h>
 #endif
 
+#endif
 #endif
