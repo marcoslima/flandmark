@@ -12,9 +12,163 @@
 #include <stdlib.h>
 #include <string.h>
 #include <float.h>
+#include <vector>
 
 #include "liblbp.h"
 #include "flandmark_detector.h"
+
+namespace vec_ser
+{
+	template <class T>
+	void write(const T& val, vec_uint8_t& target)
+	{
+		target.insert(target.end(),(uint8_t*)&val, (((uint8_t*)&val) + sizeof(val) ) );
+	};
+
+	template <class T>
+	void read(T& val, const vec_uint8_t& target, size_t& nPos)
+	{
+		for(size_t i = nPos; i < (nPos + sizeof(val)); i++)
+		{
+			*(((uint8_t*)&val)+i-nPos) = target[i];
+		}
+		nPos += sizeof(val);
+	};
+
+	template <class T>
+	void write(const std::vector<T>& vec, vec_uint8_t& target)
+	{
+		size_t nLen = vec.size();
+		write<size_t>(nLen,target);
+		for(auto e : vec) write<T>(e,target);
+	};
+	
+	template <class T>
+	void read(std::vector<T>& vec, const vec_uint8_t& source, size_t& nPos)
+	{
+		size_t nLen;
+		T val;
+		read<size_t>(nLen,source,nPos);
+		for(size_t i = 0; i < nLen; i++)
+		{
+			read<T>(val,source,nPos);
+			vec.push_back(val);
+		}
+	};
+};
+
+
+void flandmark_write_model(FLANDMARK_Model* model, vec_uint8_t& target)
+{
+	int * p_int = 0, tsize = -1, tmp_tsize = -1;
+	uint8_t * p_uint8 = 0;
+	uint32_t * p_uint32 = 0;
+
+	// write constants (size of matrices, etc)
+	vec_ser::write<uint8_t>(model->data.options.M		,target);
+	vec_ser::write<int>(model->data.options.bw[0]		,target); 
+	vec_ser::write<int>(model->data.options.bw[1]		,target);
+	vec_ser::write<int>(model->data.options.bw_margin[0],target);
+	vec_ser::write<int>(model->data.options.bw_margin[1],target);
+	vec_ser::write<int>(model->W_ROWS					,target);
+	vec_ser::write<int>(model->W_COLS					,target);
+	vec_ser::write<int>(model->data.imSize[0]			,target); 
+	vec_ser::write<int>(model->data.imSize[1]			,target);
+
+	for (int idx = 0; idx < model->data.options.M; ++idx)
+	{
+		vec_ser::write<int>(model->data.lbp[idx].WINS_ROWS, target);
+		vec_ser::write<int>(model->data.lbp[idx].WINS_COLS, target);
+	}
+
+	for (int idx = 0; idx < 3; ++idx)
+	{
+		vec_ser::write<int>(model->data.options.PSIG_ROWS[idx], target);
+		vec_ser::write<int>(model->data.options.PSIG_COLS[idx], target);
+	}
+
+	// write model->W
+	{
+		std::vector<double> vec(model->W, model->W + model->W_ROWS);
+		vec_ser::write<double>(vec,target);
+	}
+
+	// write model->mapTable
+	{
+		std::vector<int> vec(model->data.mapTable, model->data.mapTable + model->data.options.M*4);
+		vec_ser::write<int>(vec,target);
+	}
+
+	// write model->data.lbp ---------------------------------------------------
+	printf( "Writing model->data.lbp to file... \n");
+	for (int idx = 0; idx < model->data.options.M; ++idx)
+	{
+		// lbp{idx}.winSize
+		{
+			std::vector<int> vec(&model->data.lbp[idx].winSize[0],&model->data.lbp[idx].winSize[2]);
+			vec_ser::write<int>(vec,target);
+		}
+
+		// lbp{idx}.hop
+		vec_ser::write<uint8_t>(model->data.lbp[idx].hop,target);
+
+		// lbp{idx}.wins
+		{
+			std::vector<uint32_t> vec(model->data.lbp[idx].wins, model->data.lbp[idx].wins+model->data.lbp[idx].WINS_ROWS*model->data.lbp[idx].WINS_COLS);
+			vec_ser::write<uint32_t>(vec,target);
+		}
+	}
+
+	// write model->data.options.S --------------------------------------------
+	{
+		std::vector<int> vec(&model->data.options.S[0],&model->data.options.S[4*model->data.options.M]);
+		vec_ser::write<int>(vec,target);
+	}
+
+	// write model->data.options.PsiGS# -----------------------------------------
+	FLANDMARK_PSIG * PsiGi = NULL;
+	for (int psigs_idx = 0; psigs_idx < 3; ++psigs_idx)
+	{
+		printf("PsiGS for loop.\n");
+		switch (psigs_idx)
+		{
+			case 0:
+				printf( "Case 0 = PsiGS0 setting pointer...");
+				PsiGi = (model->data.options.PsiGS0);
+				printf( " done.\n");
+				break;
+			case 1:
+				printf( "Case 0 = PsiGS1 setting pointer...");
+				PsiGi = (model->data.options.PsiGS1);
+				printf( " done.\n");
+				break;
+			case 2:
+				printf( "Case 0 = PsiGS2 setting pointer...");
+				PsiGi = (model->data.options.PsiGS2);
+				printf( " done.\n");
+				break;
+		}
+
+		printf("calculating tsize\n");
+
+		tsize = model->data.options.PSIG_ROWS[psigs_idx]*model->data.options.PSIG_COLS[psigs_idx];
+
+		printf("tsize = %d\n", tsize);
+
+		for (int idx = 0; idx < tsize; ++idx)
+		{
+			// write ROWS and COLS size
+			vec_ser::write<int>(PsiGi[idx].ROWS,target);
+			vec_ser::write<int>(PsiGi[idx].COLS,target);
+
+			// write disp
+			{
+				std::vector<int> vec(PsiGi[idx].disp, PsiGi[idx].disp + (PsiGi[idx].ROWS*PsiGi[idx].COLS));
+				vec_ser::write<int>(vec,target);
+			}
+		}
+	}
+}
 
 void flandmark_write_model(const char* filename, FLANDMARK_Model* model)
 {
@@ -175,6 +329,140 @@ void flandmark_write_model(const char* filename, FLANDMARK_Model* model)
 	}
 
 	fclose(fout);
+}
+
+FLANDMARK_Model * flandmark_init(const vec_uint8_t& source)
+{
+	int *p_int = 0, tsize = -1, tmp_tsize = -1;
+	uint8_t *p_uint8 = 0;
+
+	// allocate memory for FLANDMARK_Model
+	FLANDMARK_Model * tst = (FLANDMARK_Model*)malloc(sizeof(FLANDMARK_Model));
+
+	size_t nPos = 0;
+	vec_ser::read<uint8_t>(tst->data.options.M			,source,nPos);
+	vec_ser::read<int>(tst->data.options.bw[0]			,source,nPos);
+	vec_ser::read<int>(tst->data.options.bw[1]			,source,nPos);
+    vec_ser::read<int>(tst->data.options.bw_margin[0]	,source,nPos);
+	vec_ser::read<int>(tst->data.options.bw_margin[1]	,source,nPos);
+	vec_ser::read<int>(tst->W_ROWS						,source,nPos);
+	vec_ser::read<int>(tst->W_COLS						,source,nPos);
+    vec_ser::read<int>(tst->data.imSize[0]				,source,nPos);
+	vec_ser::read<int>(tst->data.imSize[1]				,source,nPos);
+
+	int M = tst->data.options.M;
+
+    tst->data.lbp = (FLANDMARK_LBP*)malloc(M*sizeof(FLANDMARK_LBP));
+    for (int idx = 0; idx < M; ++idx)
+	{
+        vec_ser::read<int>(tst->data.lbp[idx].WINS_ROWS		,source,nPos);
+		vec_ser::read<int>(tst->data.lbp[idx].WINS_COLS		,source,nPos);
+	}
+
+	for (int idx = 0; idx < 3; ++idx)
+	{
+        vec_ser::read<int>(tst->data.options.PSIG_ROWS[idx]	,source,nPos);
+		vec_ser::read<int>(tst->data.options.PSIG_COLS[idx]	,source,nPos);
+	}
+
+	// load model.W -----------------------------------------------------------
+	tst->W = (double*)malloc(tst->W_ROWS * sizeof(double));
+	{
+		std::vector<double> vec;
+		vec_ser::read<double>(vec,source,nPos);
+		memcpy(tst->W,&vec[0],vec.size()*sizeof(double));
+	}
+
+	// load model.data.mapTable -----------------------------------------------
+	tst->data.mapTable = (int*)malloc(M*4*sizeof(int));
+	{
+		std::vector<int> vec;
+		vec_ser::read<int>(vec,source,nPos);
+
+		for (int i = 0; i < M*4; ++i)
+		{
+			tst->data.mapTable[i] = vec[i];
+		}
+	}
+
+	// load model.data.lbp ---------------------------------------------------
+    for (int idx = 0; idx < M; ++idx)
+	{
+		// lbp{idx}.winSize
+		{
+			std::vector<int> vec;
+			vec_ser::read<int>(vec,source,nPos);
+			memcpy(&tst->data.lbp[idx].winSize[0],&vec[0],2*sizeof(int));
+		}
+
+		// lbp{idx}.hop
+		vec_ser::read<uint8_t>(tst->data.lbp[idx].hop,source,nPos);
+
+		// lbp{idx}.wins
+		tsize = tst->data.lbp[idx].WINS_ROWS*tst->data.lbp[idx].WINS_COLS;
+		tst->data.lbp[idx].wins = (uint32_t*)malloc(tsize * sizeof(uint32_t));
+		{
+			std::vector<uint32_t> vec;
+			vec_ser::read<uint32_t>(vec,source,nPos);
+			memcpy(tst->data.lbp[idx].wins,&vec[0],tsize * sizeof(uint32_t));
+		}
+	}
+
+	// load model.options.S --------------------------------------------------
+	tst->data.options.S = (int*)malloc(4*M*sizeof(int));
+	{
+		std::vector<int> vec;
+		vec_ser::read(vec,source,nPos);
+		memcpy(tst->data.options.S,&vec[0],4*M*sizeof(int));
+	}
+
+	// load model.options.PsiG -----------------------------------------------
+	FLANDMARK_PSIG * PsiGi = NULL;
+	for (int psigs_idx = 0; psigs_idx < 3; ++psigs_idx)
+	{
+		tsize = tst->data.options.PSIG_ROWS[psigs_idx]*tst->data.options.PSIG_COLS[psigs_idx];
+
+		switch (psigs_idx)
+		{
+			case 0:
+				tst->data.options.PsiGS0 = (FLANDMARK_PSIG*)malloc(tsize*sizeof(FLANDMARK_PSIG));
+				PsiGi = tst->data.options.PsiGS0;
+				break;
+			case 1:
+				tst->data.options.PsiGS1 = (FLANDMARK_PSIG*)malloc(tsize*sizeof(FLANDMARK_PSIG));
+				PsiGi = tst->data.options.PsiGS1;
+				break;
+			case 2:
+				tst->data.options.PsiGS2 = (FLANDMARK_PSIG*)malloc(tsize*sizeof(FLANDMARK_PSIG));
+				PsiGi = tst->data.options.PsiGS2;
+				break;
+		}
+
+		for (int idx = 0; idx < tsize; ++idx)
+		{
+			// disp ROWS
+			// disp COLS
+			vec_ser::read<int>(PsiGi[idx].ROWS,source,nPos);
+			vec_ser::read<int>(PsiGi[idx].COLS,source,nPos);
+
+			// disp
+			tmp_tsize = PsiGi[idx].ROWS*PsiGi[idx].COLS;
+			PsiGi[idx].disp = (int*)malloc(tmp_tsize*sizeof(int));
+			{
+				std::vector<int> vec;
+				vec_ser::read<int>(vec,source,nPos);
+				memcpy(PsiGi[idx].disp,&vec[0], tmp_tsize*sizeof(int));
+			}
+		}
+	}
+
+    tst->normalizedImageFrame = (uint8_t*)calloc(tst->data.options.bw[0]*tst->data.options.bw[1], sizeof(uint8_t));
+
+    tst->bb = (double*)calloc(4, sizeof(double));
+
+    tst->sf = (float*)calloc(2, sizeof(float));
+
+	return tst;
 }
 
 FLANDMARK_Model * flandmark_init(const char* filename)
@@ -377,6 +665,7 @@ FLANDMARK_Model * flandmark_init(const char* filename)
 
 	return tst;
 }
+
 
 EError_T flandmark_check_model(FLANDMARK_Model* model, FLANDMARK_Model* tst)
 {

@@ -7,6 +7,8 @@
  * Written (W) 2012 Michal Uricar
  * Copyright (C) 2012 Michal Uricar
  */
+#include <iostream>
+#include <vector>
 
 #ifndef __FLANDMARK_DETECTOR_H_
 #define __FLANDMARK_DETECTOR_H_
@@ -17,6 +19,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 using namespace cv;
+typedef std::vector<uint8_t> vec_uint8_t;
 
 
 // index row-order matrices
@@ -97,6 +100,9 @@ enum EError_T {
  */
 FLANDMARK_Model * flandmark_init(const char* filename);
 
+// Lê o modelo de um vector
+FLANDMARK_Model * flandmark_init(const std::vector<unsigned char>& source);
+
 /**
  * Function flandmark_write model
  *
@@ -106,6 +112,11 @@ FLANDMARK_Model * flandmark_init(const char* filename);
  * \param[in] model
  */
 void flandmark_write_model(const char* filename, FLANDMARK_Model* model);
+
+
+// Escreve o modelo em uma porção contínua de memória:
+void flandmark_write_model(FLANDMARK_Model* model, std::vector<unsigned char>& target);
+
 
 /**
  * Function flandmark_checkModel
